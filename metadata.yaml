@@ -1,5 +1,5 @@
 homepage: https://stape.io/
 documentation: https://github.com/stape-io/currency-converter-variable
 versions:
-  - sha: '<INITIAL-COMMIT-HASH>'
+  - sha: '371a52f80a8a4a1e71592df3dd53abd31cb2bafa'
     changeNotes: Initial release.
