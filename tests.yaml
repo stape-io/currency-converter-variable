@@ -161,11 +161,18 @@ scenarios:
         );
         assertThat(variableResult).isEqualTo(0.88);
       });
-  - name: '[Amount] Falls back to a single unit when the configured amount is not a number'
+  - name: '[Amount] Returns undefined when the configured amount is not a number'
     code: |-
       runCode(createMockData({amount: 'not-a-number'})).then((variableResult) => {
-        assertThat(variableResult).isEqualTo(0.88);
+        assertThat(variableResult).isUndefined();
       });
+  - name: '[Amount] Still returns the exchange rate when the configured amount is not a number'
+    code: |-
+      runCode(createMockData({amount: 'not-a-number', whatToReturn: 'exchangeRate'})).then(
+        (variableResult) => {
+          assertThat(variableResult).isEqualTo(0.88);
+        }
+      );
   - name: '[Amount] Converts a zero amount to zero'
     code: |-
       runCode(createMockData({amount: '0'})).then((variableResult) => {
@@ -211,6 +218,15 @@ scenarios:
     code: |-
       mock('sendHttpRequest', () =>
         Promise.create((resolve) => resolve({statusCode: 200, body: '<html>Bad Gateway</html>'}))
+      );
+
+      runCode(mockData).then((variableResult) => {
+        assertThat(variableResult).isUndefined();
+      });
+  - name: '[Failure] Returns undefined when the response body is empty'
+    code: |-
+      mock('sendHttpRequest', () =>
+        Promise.create((resolve) => resolve({statusCode: 200, body: ''}))
       );
 
       runCode(mockData).then((variableResult) => {
@@ -293,6 +309,22 @@ scenarios:
         assertThat(storedKey).isEqualTo('xe_rate|testAccountId|USD|EUR|2.05');
         assertThat(storedValue.ts).isEqualTo(NOW);
         assertThat(storedValue.response).isEqualTo(createRateResponse('USD', 'EUR', RATE));
+      });
+  - name: '[Cache] Does not store a response that holds no rate for the requested currency'
+    code: |-
+      let storeCalls = 0;
+
+      mockObject('templateDataStorage', {
+        getItemCopy: () => undefined,
+        setItemCopy: () => {
+          storeCalls++;
+        }
+      });
+      mockSuccessfulResponse(createRateResponse('USD', 'GBP', RATE));
+
+      runCode(createMockData({useCache: true})).then((variableResult) => {
+        assertThat(variableResult).isUndefined();
+        assertThat(storeCalls).isEqualTo(0);
       });
   - name: '[Cache] Neither reads nor writes Template Storage when caching is disabled'
     code: |-

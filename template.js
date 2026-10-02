@@ -49,13 +49,27 @@ function getRateResponse(fromCurrency, toCurrency) {
     .then((result) => {
       if (result.statusCode < 200 || result.statusCode >= 300) return undefined;
 
-      const response = JSON.parse(result.body || '{}');
+      const response = safeJsonParse(result.body);
       if (getType(response) !== 'object') return undefined;
 
-      writeCache(cacheKey, response);
+      if (extractRate(response, toCurrency) !== undefined) writeCache(cacheKey, response);
       return response;
     })
     .catch(() => undefined);
+}
+
+// JSON.parse throws on malformed input (e.g. an HTML error page), so check the shape first.
+function safeJsonParse(body) {
+  if (getType(body) !== 'string') return undefined;
+
+  const trimmedBody = body.trim();
+  const firstChar = trimmedBody.charAt(0);
+  const lastChar = trimmedBody.charAt(trimmedBody.length - 1);
+  const looksLikeJson =
+    (firstChar === '{' && lastChar === '}') || (firstChar === '[' && lastChar === ']');
+  if (!looksLikeJson) return undefined;
+
+  return JSON.parse(trimmedBody);
 }
 
 function buildRequestUrl(fromCurrency, toCurrency, margin) {
@@ -83,7 +97,11 @@ function formatOutput(response, toCurrency, amount) {
   const rate = extractRate(response, toCurrency);
   if (rate === undefined) return undefined;
 
-  return roundValue(data.whatToReturn === 'exchangeRate' ? rate : rate * amount);
+  if (data.whatToReturn === 'exchangeRate') return roundValue(rate);
+
+  // A provided but invalid Amount must not be reported as a converted value of 1 unit.
+  if (amount === undefined) return undefined;
+  return roundValue(rate * amount);
 }
 
 function extractRate(response, toCurrency) {
@@ -114,7 +132,7 @@ function resolveAmount(data, eventData) {
   if (!isValidValue(rawAmount)) return 1;
 
   const amount = makeNumber(rawAmount);
-  return isValidNumber(amount) ? amount : 1;
+  return isValidNumber(amount) ? amount : undefined;
 }
 
 function resolveMargin() {

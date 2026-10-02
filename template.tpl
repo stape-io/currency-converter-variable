@@ -41,7 +41,7 @@ ___TEMPLATE_PARAMETERS___
           }
         ],
         "alwaysInSummary": true,
-        "help": "Your Xe Currency Data API account ID. It is sent as the username for HTTP Basic authentication.\u003cbr/\u003e\u003cbr/\u003eYou can request free API credentials for a 7-day trial \u003ca href\u003d\"https://xecd-account-api.xe.com/v2/newuser?type\u003dfreetrial/\"\u003ehere\u003c/a\u003e."
+        "help": "Your Xe Currency Data API account ID.\n\u003cbr/\u003e\u003cbr/\u003e\nLearn more: \u003ca href\u003d\"https://help.xe.com/hc/en-gb/articles/17085932359057-Where-can-I-find-my-Account-ID-and-API-Key-for-Xe-s-Currency-Data-plugin-on-Business-Central\"\u003e[1]\u003c/a\u003e and \u003ca href\u003d\"https://developers.xe.com/docs/currency-data-api/registration-overview#step-3--find-your-credentials\"\u003e[2]\u003c/a\u003e."
       },
       {
         "type": "TEXT",
@@ -53,7 +53,7 @@ ___TEMPLATE_PARAMETERS___
             "type": "NON_EMPTY"
           }
         ],
-        "help": "Your Xe Currency Data API key. It is sent as the password for HTTP Basic authentication."
+        "help": "Your Xe Currency Data API key.\n\u003cbr/\u003e\u003cbr/\u003e\nLearn more: \u003ca href\u003d\"https://help.xe.com/hc/en-gb/articles/17085932359057-Where-can-I-find-my-Account-ID-and-API-Key-for-Xe-s-Currency-Data-plugin-on-Business-Central\"\u003e[1]\u003c/a\u003e and \u003ca href\u003d\"https://developers.xe.com/docs/currency-data-api/registration-overview#step-3--find-your-credentials\"\u003e[2]\u003c/a\u003e."
       }
     ]
   },
@@ -68,6 +68,32 @@ ___TEMPLATE_PARAMETERS___
         "name": "fromCurrency",
         "displayName": "From Currency",
         "simpleValueType": true,
+        "valueValidators": [
+          {
+            "type": "REGEX",
+            "args": [
+              "^[A-Za-z]{3}$"
+            ],
+            "errorMessage": "Must be a 3-letter ISO 4217 currency code, e.g. USD.",
+            "enablingConditions": [
+              {
+                "paramName": "autoMapEventData",
+                "paramValue": true,
+                "type": "NOT_EQUALS"
+              }
+            ]
+          },
+          {
+            "type": "NON_EMPTY",
+            "enablingConditions": [
+              {
+                "paramName": "autoMapEventData",
+                "paramValue": true,
+                "type": "NOT_EQUALS"
+              }
+            ]
+          }
+        ],
         "valueHint": "USD",
         "help": "ISO 4217 code of the currency the amount is converted from.\u003cbr/\u003e\u003cbr/\u003eFalls back to \u003ci\u003eeventData.currency\u003c/i\u003e when left empty and \u003ci\u003eAutomap from Event Data\u003c/i\u003e is enabled, and to \u003ci\u003eUSD\u003c/i\u003e when neither is set."
       },
@@ -78,7 +104,16 @@ ___TEMPLATE_PARAMETERS___
         "simpleValueType": true,
         "valueValidators": [
           {
-            "type": "NON_EMPTY"
+            "type": "NON_EMPTY",
+            "enablingConditions": []
+          },
+          {
+            "type": "REGEX",
+            "args": [
+              "^[A-Za-z]{3}$"
+            ],
+            "errorMessage": "Must be a 3-letter ISO 4217 currency code, e.g. EUR.",
+            "enablingConditions": []
           }
         ],
         "alwaysInSummary": true,
@@ -91,7 +126,19 @@ ___TEMPLATE_PARAMETERS___
         "displayName": "Amount",
         "simpleValueType": true,
         "valueHint": "99.90",
-        "help": "The amount of the From Currency to convert.\u003cbr/\u003e\u003cbr/\u003eFalls back to \u003ci\u003eeventData.value\u003c/i\u003e when left empty and \u003ci\u003eAutomap from Event Data\u003c/i\u003e is enabled, and to \u003ci\u003e1\u003c/i\u003e when neither is set."
+        "help": "The amount of the From Currency to convert.\u003cbr/\u003e\u003cbr/\u003eFalls back to \u003ci\u003eeventData.value\u003c/i\u003e when left empty and \u003ci\u003eAutomap from Event Data\u003c/i\u003e is enabled, and to \u003ci\u003e1\u003c/i\u003e when neither is set. The variable returns \u003ci\u003eundefined\u003c/i\u003e when the value is not a number.",
+        "valueValidators": [
+          {
+            "type": "NON_EMPTY",
+            "enablingConditions": [
+              {
+                "paramName": "autoMapEventData",
+                "paramValue": true,
+                "type": "NOT_EQUALS"
+              }
+            ]
+          }
+        ]
       },
       {
         "type": "CHECKBOX",
@@ -99,7 +146,7 @@ ___TEMPLATE_PARAMETERS___
         "checkboxText": "Automap from Event Data",
         "simpleValueType": true,
         "defaultValue": true,
-        "help": "When enabled (default), From Currency and Amount fall back to Event Data as documented in their help text. Disable to require both values to be set explicitly on this variable."
+        "help": "When enabled (default), fields left empty fall back to values from Event Data, as documented in each field\u0027s help text. Disable to require every value to be set explicitly on this variable.\u003cbr/\u003e\u003cbr/\u003eDefault mappings:\u003cul\u003e\u003cli\u003e\u003ci\u003eFrom Currency\u003c/i\u003e: \u003ci\u003eeventData.currency\u003c/i\u003e\u003c/li\u003e\u003cli\u003e\u003ci\u003eAmount\u003c/i\u003e: \u003ci\u003eeventData.value\u003c/i\u003e\u003c/li\u003e\u003c/ul\u003e"
       }
     ]
   },
@@ -135,7 +182,7 @@ ___TEMPLATE_PARAMETERS___
             "type": "NON_EMPTY"
           }
         ],
-        "help": "\u003cul\u003e\n  \u003cli\u003e\u003cb\u003eConverted Amount\u003c/b\u003e: the Amount multiplied by the mid-market exchange rate.\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eExchange Rate\u003c/b\u003e: the mid-market rate for a single unit of the From Currency.\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eFull API Response\u003c/b\u003e: the parsed Xe API response object. Rates are always requested for a single unit, so \u003ci\u003eto[0].mid\u003c/i\u003e holds the exchange rate rather than the converted amount.\u003c/li\u003e\n\u003c/ul\u003e\nThe variable returns \u003ci\u003eundefined\u003c/i\u003e when the rate cannot be retrieved."
+        "help": "\u003cul\u003e\n  \u003cli\u003e\u003cb\u003eConverted Amount\u003c/b\u003e: the Amount multiplied by the mid-market exchange rate.\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eExchange Rate\u003c/b\u003e: the mid-market rate for a single unit of the From Currency.\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eFull API Response\u003c/b\u003e: the parsed Xe API response object. Rates are always requested for a single unit, so \u003ci\u003eto[0].mid\u003c/i\u003e holds the exchange rate rather than the converted amount.\u003c/li\u003e\n\u003c/ul\u003e\nWhen a \u003cb\u003eMargin\u003c/b\u003e is set, the rate and the converted amount include it and are no longer the plain mid-market values.\u003cbr/\u003e\u003cbr/\u003eThe variable returns \u003ci\u003eundefined\u003c/i\u003e when the rate cannot be retrieved, or when Converted Amount is selected and the Amount is not a number."
       },
       {
         "type": "TEXT",
@@ -144,6 +191,11 @@ ___TEMPLATE_PARAMETERS___
         "simpleValueType": true,
         "valueHint": "2",
         "help": "Number of decimal places the returned number is rounded to. Leave empty to return the value at full precision.",
+        "valueValidators": [
+          {
+            "type": "NON_NEGATIVE_NUMBER"
+          }
+        ],
         "enablingConditions": [
           {
             "paramName": "whatToReturn",
@@ -179,18 +231,24 @@ ___TEMPLATE_PARAMETERS___
       {
         "type": "TEXT",
         "name": "cacheTtlMinutes",
-        "displayName": "Cache TTL (minutes)",
+        "displayName": "Cache TTL",
         "simpleValueType": true,
         "defaultValue": 60,
         "valueHint": "60",
         "help": "How long a cached exchange rate stays valid. Defaults to 60 minutes when left empty or invalid.",
+        "valueValidators": [
+          {
+            "type": "POSITIVE_NUMBER"
+          }
+        ],
         "enablingConditions": [
           {
             "paramName": "useCache",
             "paramValue": true,
             "type": "EQUALS"
           }
-        ]
+        ],
+        "valueUnit": "minutes"
       }
     ]
   }
@@ -250,13 +308,27 @@ function getRateResponse(fromCurrency, toCurrency) {
     .then((result) => {
       if (result.statusCode < 200 || result.statusCode >= 300) return undefined;
 
-      const response = JSON.parse(result.body || '{}');
+      const response = safeJsonParse(result.body);
       if (getType(response) !== 'object') return undefined;
 
-      writeCache(cacheKey, response);
+      if (extractRate(response, toCurrency) !== undefined) writeCache(cacheKey, response);
       return response;
     })
     .catch(() => undefined);
+}
+
+// JSON.parse throws on malformed input (e.g. an HTML error page), so check the shape first.
+function safeJsonParse(body) {
+  if (getType(body) !== 'string') return undefined;
+
+  const trimmedBody = body.trim();
+  const firstChar = trimmedBody.charAt(0);
+  const lastChar = trimmedBody.charAt(trimmedBody.length - 1);
+  const looksLikeJson =
+    (firstChar === '{' && lastChar === '}') || (firstChar === '[' && lastChar === ']');
+  if (!looksLikeJson) return undefined;
+
+  return JSON.parse(trimmedBody);
 }
 
 function buildRequestUrl(fromCurrency, toCurrency, margin) {
@@ -284,7 +356,11 @@ function formatOutput(response, toCurrency, amount) {
   const rate = extractRate(response, toCurrency);
   if (rate === undefined) return undefined;
 
-  return roundValue(data.whatToReturn === 'exchangeRate' ? rate : rate * amount);
+  if (data.whatToReturn === 'exchangeRate') return roundValue(rate);
+
+  // A provided but invalid Amount must not be reported as a converted value of 1 unit.
+  if (amount === undefined) return undefined;
+  return roundValue(rate * amount);
 }
 
 function extractRate(response, toCurrency) {
@@ -315,7 +391,7 @@ function resolveAmount(data, eventData) {
   if (!isValidValue(rawAmount)) return 1;
 
   const amount = makeNumber(rawAmount);
-  return isValidNumber(amount) ? amount : 1;
+  return isValidNumber(amount) ? amount : undefined;
 }
 
 function resolveMargin() {
@@ -641,12 +717,19 @@ scenarios:
       );
       assertThat(variableResult).isEqualTo(0.88);
     });
-- name: '[Amount] Falls back to a single unit when the configured amount is not a
-    number'
+- name: '[Amount] Returns undefined when the configured amount is not a number'
   code: |-
     runCode(createMockData({amount: 'not-a-number'})).then((variableResult) => {
-      assertThat(variableResult).isEqualTo(0.88);
+      assertThat(variableResult).isUndefined();
     });
+- name: '[Amount] Still returns the exchange rate when the configured amount is not
+    a number'
+  code: |-
+    runCode(createMockData({amount: 'not-a-number', whatToReturn: 'exchangeRate'})).then(
+      (variableResult) => {
+        assertThat(variableResult).isEqualTo(0.88);
+      }
+    );
 - name: '[Amount] Converts a zero amount to zero'
   code: |-
     runCode(createMockData({amount: '0'})).then((variableResult) => {
@@ -692,6 +775,15 @@ scenarios:
   code: |-
     mock('sendHttpRequest', () =>
       Promise.create((resolve) => resolve({statusCode: 200, body: '<html>Bad Gateway</html>'}))
+    );
+
+    runCode(mockData).then((variableResult) => {
+      assertThat(variableResult).isUndefined();
+    });
+- name: '[Failure] Returns undefined when the response body is empty'
+  code: |-
+    mock('sendHttpRequest', () =>
+      Promise.create((resolve) => resolve({statusCode: 200, body: ''}))
     );
 
     runCode(mockData).then((variableResult) => {
@@ -774,6 +866,22 @@ scenarios:
       assertThat(storedKey).isEqualTo('xe_rate|testAccountId|USD|EUR|2.05');
       assertThat(storedValue.ts).isEqualTo(NOW);
       assertThat(storedValue.response).isEqualTo(createRateResponse('USD', 'EUR', RATE));
+    });
+- name: '[Cache] Does not store a response that holds no rate for the requested currency'
+  code: |-
+    let storeCalls = 0;
+
+    mockObject('templateDataStorage', {
+      getItemCopy: () => undefined,
+      setItemCopy: () => {
+        storeCalls++;
+      }
+    });
+    mockSuccessfulResponse(createRateResponse('USD', 'GBP', RATE));
+
+    runCode(createMockData({useCache: true})).then((variableResult) => {
+      assertThat(variableResult).isUndefined();
+      assertThat(storeCalls).isEqualTo(0);
     });
 - name: '[Cache] Neither reads nor writes Template Storage when caching is disabled'
   code: |-
@@ -869,5 +977,4 @@ ___NOTES___
   - First release
 
 Created on 09/18/2026, 05:06:00
-
 
