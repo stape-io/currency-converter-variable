@@ -1,0 +1,346 @@
+setup: |-
+  const JSON = require('JSON');
+  const Object = require('Object');
+  const Promise = require('Promise');
+  const toBase64 = require('toBase64');
+
+  const assign = (target, source) => {
+    if (!source) return target;
+    const keys = Object.keys(source);
+    keys.forEach((key) => {
+      target[key] = source[key];
+    });
+    return target;
+  };
+
+  const NOW = 1000000000000;
+  const RATE = 0.876543;
+
+  const createRateResponse = (from, to, mid) => ({
+    terms: 'https://www.xe.com/legal/dfs.php',
+    privacy: 'https://www.xe.com/privacy.php',
+    from: from,
+    amount: 1,
+    timestamp: '2026-09-18T00:00:00Z',
+    to: [{quotecurrency: to, mid: mid}]
+  });
+
+  const mockSuccessfulResponse = (response) => {
+    mock('sendHttpRequest', () =>
+      Promise.create((resolve) => resolve({statusCode: 200, body: JSON.stringify(response)}))
+    );
+  };
+
+  const expectedRequestOptions = {
+    method: 'GET',
+    headers: {
+      Authorization: 'Basic ' + toBase64('testAccountId:testApiKey'),
+      Accept: 'application/json'
+    },
+    timeout: 3000
+  };
+
+  const baseMockData = {
+    accountId: 'testAccountId',
+    apiKey: 'testApiKey',
+    fromCurrency: 'USD',
+    toCurrency: 'EUR',
+    amount: '100',
+    autoMapEventData: true,
+    whatToReturn: 'convertedAmount',
+    decimalPlaces: '2',
+    margin: undefined,
+    useCache: false,
+    cacheTtlMinutes: '60'
+  };
+
+  const createMockData = (overrides) => assign(assign({}, baseMockData), overrides || {});
+
+  mock('getAllEventData', () => ({page_location: 'https://example.com/checkout'}));
+  mock('getRequestHeader', () => undefined);
+  mock('getTimestampMillis', () => NOW);
+  mockObject('templateDataStorage', {
+    getItemCopy: () => undefined,
+    setItemCopy: () => {}
+  });
+  mockSuccessfulResponse(createRateResponse('USD', 'EUR', RATE));
+
+  const mockData = createMockData({});
+
+scenarios:
+  - name: '[Early Exit] Returns undefined and makes no request when the URL matches the
+      GTM preview endpoint'
+    code: |-
+      mock('getAllEventData', () => ({page_location: 'https://gtm-msr.appspot.com/render'}));
+
+      const variableResult = runCode(mockData);
+
+      assertThat(variableResult).isUndefined();
+      assertApi('sendHttpRequest').wasNotCalled();
+  - name: '[Early Exit] Returns undefined and makes no request when the referer header
+      matches the GTM preview endpoint'
+    code: |-
+      mock('getAllEventData', () => ({}));
+      mock('getRequestHeader', (header) =>
+        header === 'referer' ? 'https://gtm-msr.appspot.com/render' : undefined
+      );
+
+      const variableResult = runCode(mockData);
+
+      assertThat(variableResult).isUndefined();
+      assertApi('sendHttpRequest').wasNotCalled();
+  - name: '[Early Exit] Returns undefined and makes no request when API credentials are
+      missing'
+    code: |-
+      const variableResult = runCode(createMockData({apiKey: undefined}));
+
+      assertThat(variableResult).isUndefined();
+      assertApi('sendHttpRequest').wasNotCalled();
+  - name: '[Early Exit] Returns undefined and makes no request when To Currency is missing'
+    code: |-
+      const variableResult = runCode(createMockData({toCurrency: ''}));
+
+      assertThat(variableResult).isUndefined();
+      assertApi('sendHttpRequest').wasNotCalled();
+  - name: '[Request] Requests the rate for a single unit with Basic authentication'
+    code: |-
+      runCode(mockData).then(() => {
+        assertApi('sendHttpRequest').wasCalledWith(
+          'https://xecdapi.xe.com/v1/convert_from?from=USD&to=EUR&amount=1',
+          expectedRequestOptions
+        );
+      });
+  - name: '[Request] Appends the margin parameter when a margin is configured'
+    code: |-
+      runCode(createMockData({margin: '2.05'})).then(() => {
+        assertApi('sendHttpRequest').wasCalledWith(
+          'https://xecdapi.xe.com/v1/convert_from?from=USD&to=EUR&amount=1&margin=2.05',
+          expectedRequestOptions
+        );
+      });
+  - name: '[Request] Trims and upper-cases the configured currency codes'
+    code: |-
+      runCode(createMockData({fromCurrency: ' usd ', toCurrency: 'eur'})).then((variableResult) => {
+        assertApi('sendHttpRequest').wasCalledWith(
+          'https://xecdapi.xe.com/v1/convert_from?from=USD&to=EUR&amount=1',
+          expectedRequestOptions
+        );
+        assertThat(variableResult).isEqualTo(87.65);
+      });
+  - name: '[Automap] Falls back to the Event Data currency and value when the fields are
+      empty'
+    code: |-
+      mock('getAllEventData', () => ({
+        page_location: 'https://example.com/checkout',
+        currency: 'GBP',
+        value: 250
+      }));
+      mockSuccessfulResponse(createRateResponse('GBP', 'EUR', RATE));
+
+      runCode(createMockData({fromCurrency: '', amount: ''})).then((variableResult) => {
+        assertApi('sendHttpRequest').wasCalledWith(
+          'https://xecdapi.xe.com/v1/convert_from?from=GBP&to=EUR&amount=1',
+          expectedRequestOptions
+        );
+        assertThat(variableResult).isEqualTo(219.14);
+      });
+  - name: '[Automap] Ignores Event Data and applies the defaults when automap is disabled'
+    code: |-
+      mock('getAllEventData', () => ({
+        page_location: 'https://example.com/checkout',
+        currency: 'GBP',
+        value: 250
+      }));
+
+      const overrides = {fromCurrency: '', amount: '', autoMapEventData: false};
+
+      runCode(createMockData(overrides)).then((variableResult) => {
+        assertApi('sendHttpRequest').wasCalledWith(
+          'https://xecdapi.xe.com/v1/convert_from?from=USD&to=EUR&amount=1',
+          expectedRequestOptions
+        );
+        assertThat(variableResult).isEqualTo(0.88);
+      });
+  - name: '[Amount] Returns undefined when the configured amount is not a number'
+    code: |-
+      runCode(createMockData({amount: 'not-a-number'})).then((variableResult) => {
+        assertThat(variableResult).isUndefined();
+      });
+  - name: '[Amount] Still returns the exchange rate when the configured amount is not a number'
+    code: |-
+      runCode(createMockData({amount: 'not-a-number', whatToReturn: 'exchangeRate'})).then(
+        (variableResult) => {
+          assertThat(variableResult).isEqualTo(0.88);
+        }
+      );
+  - name: '[Amount] Converts a zero amount to zero'
+    code: |-
+      runCode(createMockData({amount: '0'})).then((variableResult) => {
+        assertThat(variableResult).isEqualTo(0);
+      });
+  - name: '[Output] Returns the converted amount rounded to the configured decimal places'
+    code: |-
+      runCode(mockData).then((variableResult) => {
+        assertThat(variableResult).isEqualTo(87.65);
+      });
+  - name: '[Output] Returns the exchange rate when Exchange Rate is selected'
+    code: |-
+      runCode(createMockData({whatToReturn: 'exchangeRate'})).then((variableResult) => {
+        assertThat(variableResult).isEqualTo(0.88);
+      });
+  - name: '[Output] Returns the value at full precision when Decimal Places is empty'
+    code: |-
+      runCode(createMockData({whatToReturn: 'exchangeRate', decimalPlaces: ''})).then(
+        (variableResult) => {
+          assertThat(variableResult).isEqualTo(RATE);
+        }
+      );
+  - name: '[Output] Returns the parsed API response when Full API Response is selected'
+    code: |-
+      const rateResponse = createRateResponse('USD', 'EUR', RATE);
+      mockSuccessfulResponse(rateResponse);
+
+      runCode(createMockData({whatToReturn: 'allData'})).then((variableResult) => {
+        assertThat(variableResult).isEqualTo(rateResponse);
+      });
+  - name: '[Failure] Returns undefined when the API responds with a non-2xx status code'
+    code: |-
+      mock('sendHttpRequest', () =>
+        Promise.create((resolve) =>
+          resolve({statusCode: 401, body: '{"code":1,"message":"Bad credentials"}'})
+        )
+      );
+
+      runCode(mockData).then((variableResult) => {
+        assertThat(variableResult).isUndefined();
+      });
+  - name: '[Failure] Returns undefined when the response body is not valid JSON'
+    code: |-
+      mock('sendHttpRequest', () =>
+        Promise.create((resolve) => resolve({statusCode: 200, body: '<html>Bad Gateway</html>'}))
+      );
+
+      runCode(mockData).then((variableResult) => {
+        assertThat(variableResult).isUndefined();
+      });
+  - name: '[Failure] Returns undefined when the response body is empty'
+    code: |-
+      mock('sendHttpRequest', () =>
+        Promise.create((resolve) => resolve({statusCode: 200, body: ''}))
+      );
+
+      runCode(mockData).then((variableResult) => {
+        assertThat(variableResult).isUndefined();
+      });
+  - name: '[Failure] Returns undefined when the request fails or times out'
+    code: |-
+      mock('sendHttpRequest', () =>
+        Promise.create((resolve, reject) => reject({reason: 'timed_out'}))
+      );
+
+      runCode(mockData).then((variableResult) => {
+        assertThat(variableResult).isUndefined();
+      });
+  - name: '[Failure] Returns undefined when the response holds no rate for the requested
+      currency'
+    code: |-
+      mockSuccessfulResponse(createRateResponse('USD', 'GBP', RATE));
+
+      runCode(mockData).then((variableResult) => {
+        assertThat(variableResult).isUndefined();
+      });
+  - name: '[Cache] Serves a valid cached rate without calling the API'
+    code: |-
+      let requestedKey;
+
+      mockObject('templateDataStorage', {
+        getItemCopy: (key) => {
+          requestedKey = key;
+          return {ts: NOW, response: createRateResponse('USD', 'EUR', RATE)};
+        },
+        setItemCopy: () => {}
+      });
+
+      runCode(createMockData({useCache: true})).then((variableResult) => {
+        assertApi('sendHttpRequest').wasNotCalled();
+        assertThat(requestedKey).isEqualTo('xe_rate|testAccountId|USD|EUR|');
+        assertThat(variableResult).isEqualTo(87.65);
+      });
+  - name: '[Cache] Requests a fresh rate when the cached entry has expired'
+    code: |-
+      mockObject('templateDataStorage', {
+        getItemCopy: () => ({
+          ts: NOW - 60 * 60 * 1000,
+          response: createRateResponse('USD', 'EUR', RATE)
+        }),
+        setItemCopy: () => {}
+      });
+
+      runCode(createMockData({useCache: true})).then(() => {
+        assertApi('sendHttpRequest').wasCalled();
+      });
+  - name: '[Cache] Falls back to the default TTL when Cache TTL is empty'
+    code: |-
+      mockObject('templateDataStorage', {
+        getItemCopy: () => ({
+          ts: NOW - 59 * 60 * 1000,
+          response: createRateResponse('USD', 'EUR', RATE)
+        }),
+        setItemCopy: () => {}
+      });
+
+      runCode(createMockData({useCache: true, cacheTtlMinutes: ''})).then(() => {
+        assertApi('sendHttpRequest').wasNotCalled();
+      });
+  - name: '[Cache] Stores a successful response under a margin-aware cache key'
+    code: |-
+      let storedKey;
+      let storedValue;
+
+      mockObject('templateDataStorage', {
+        getItemCopy: () => undefined,
+        setItemCopy: (key, value) => {
+          storedKey = key;
+          storedValue = value;
+        }
+      });
+
+      runCode(createMockData({useCache: true, margin: '2.05'})).then(() => {
+        assertThat(storedKey).isEqualTo('xe_rate|testAccountId|USD|EUR|2.05');
+        assertThat(storedValue.ts).isEqualTo(NOW);
+        assertThat(storedValue.response).isEqualTo(createRateResponse('USD', 'EUR', RATE));
+      });
+  - name: '[Cache] Does not store a response that holds no rate for the requested currency'
+    code: |-
+      let storeCalls = 0;
+
+      mockObject('templateDataStorage', {
+        getItemCopy: () => undefined,
+        setItemCopy: () => {
+          storeCalls++;
+        }
+      });
+      mockSuccessfulResponse(createRateResponse('USD', 'GBP', RATE));
+
+      runCode(createMockData({useCache: true})).then((variableResult) => {
+        assertThat(variableResult).isUndefined();
+        assertThat(storeCalls).isEqualTo(0);
+      });
+  - name: '[Cache] Neither reads nor writes Template Storage when caching is disabled'
+    code: |-
+      let storageCalls = 0;
+
+      mockObject('templateDataStorage', {
+        getItemCopy: () => {
+          storageCalls++;
+          return undefined;
+        },
+        setItemCopy: () => {
+          storageCalls++;
+        }
+      });
+
+      runCode(createMockData({useCache: false})).then(() => {
+        assertApi('sendHttpRequest').wasCalled();
+        assertThat(storageCalls).isEqualTo(0);
+      });
