@@ -2,7 +2,7 @@
 
 The **Currency Converter variable for the Google Tag Manager server container** converts a monetary amount from one currency to another using exchange rates from one of three APIs: [Frankfurter API](https://frankfurter.dev/) (default), the [Exchange API](https://github.com/fawazahmed0/exchange-api), or the paid [Xe Currency Data API](https://xecdapi.xe.com/docs/v1/).
 
-Use it to normalise purchase values into a single reporting currency before they reach Google Analytics 4, Google Ads, Meta, or any other destination — so every platform receives comparable revenue figures regardless of the currency the customer paid in.
+Use it to normalize purchase values into a single reporting currency before they reach Google Analytics 4, Google Ads, Meta, or any other destination — so every platform receives comparable revenue figures regardless of the currency the customer paid in.
 
 ## Features
 
