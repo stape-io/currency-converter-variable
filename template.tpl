@@ -13,8 +13,8 @@ ___INFO___
   "id": "cvt_temp_public_id",
   "version": 1,
   "securityGroups": [],
-  "displayName": "Currency Converter For Google Tag Manager",
-  "description": "Converts a monetary amount from one currency to another using live mid-market exchange rates from the Xe Currency Data API.",
+  "displayName": "Currency Converter",
+  "description": "Converts a monetary amount from one currency to another using exchange rates from Frankfurter, the Exchange API or Xe Currency Data.",
   "containerContexts": [
     "SERVER"
   ]
@@ -26,10 +26,39 @@ ___TEMPLATE_PARAMETERS___
 [
   {
     "type": "GROUP",
-    "name": "authGroup",
+    "name": "apiGroup",
     "displayName": "",
     "groupStyle": "NO_ZIPPY",
     "subParams": [
+      {
+        "type": "SELECT",
+        "name": "apiProvider",
+        "displayName": "API Provider",
+        "macrosInSelect": false,
+        "selectItems": [
+          {
+            "value": "frankfurter",
+            "displayValue": "Frankfurter API"
+          },
+          {
+            "value": "exchangeApi",
+            "displayValue": "Exchange API"
+          },
+          {
+            "value": "xe",
+            "displayValue": "Xe Currency Data (paid)"
+          }
+        ],
+        "simpleValueType": true,
+        "defaultValue": "frankfurter",
+        "alwaysInSummary": true,
+        "valueValidators": [
+          {
+            "type": "NON_EMPTY"
+          }
+        ],
+        "help": "\u003cul\u003e\n  \u003cli\u003e\u003cb\u003eFrankfurter\u003c/b\u003e: rates from central banks and official sources for 165 currencies. See \u003ca href\u003d\"https://frankfurter.dev\"\u003efrankfurter.dev\u003c/a\u003e.\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eExchange API \u003c/b\u003e: rates for 200+ currencies, including cryptocurrencies and metals. Requests fall back to a mirror when the main CDN fails. See \u003ca href\u003d\"https://github.com/fawazahmed0/exchange-api\"\u003ethe documentation\u003c/a\u003e.\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eXe Currency Data (paid)\u003c/b\u003e: mid-market rates from \u003ca href\u003d\"https://xecdapi.xe.com/docs/v1\"\u003eXe\u003c/a\u003e. It requires an Xe Currency Data account and supports an optional margin.\u003c/li\u003e\n\u003c/ul\u003eFrankfurter and the Exchange API are free and require no account or API key, but they only update their rates once a day."
+      },
       {
         "type": "TEXT",
         "name": "accountId",
@@ -41,7 +70,14 @@ ___TEMPLATE_PARAMETERS___
           }
         ],
         "alwaysInSummary": true,
-        "help": "Your Xe Currency Data API account ID.\n\u003cbr/\u003e\u003cbr/\u003e\nLearn more: \u003ca href\u003d\"https://help.xe.com/hc/en-gb/articles/17085932359057-Where-can-I-find-my-Account-ID-and-API-Key-for-Xe-s-Currency-Data-plugin-on-Business-Central\"\u003e[1]\u003c/a\u003e and \u003ca href\u003d\"https://developers.xe.com/docs/currency-data-api/registration-overview#step-3--find-your-credentials\"\u003e[2]\u003c/a\u003e."
+        "help": "Your Xe Currency Data account ID. It is sent as the username for HTTP Basic authentication.\u003cbr/\u003e\u003cbr/\u003eFind it in your Xe Currency Data account: \u003ca href\u003d\"https://developers.xe.com/docs/currency-data-api/registration-overview#step-3--find-your-credentials\"\u003edocumentation\u003c/a\u003e. You can request free credentials for a 7-day trial \u003ca href\u003d\"https://xecd-account-api.xe.com/v2/newuser?type\u003dfreetrial/\"\u003ehere\u003c/a\u003e.",
+        "enablingConditions": [
+          {
+            "paramName": "apiProvider",
+            "paramValue": "xe",
+            "type": "EQUALS"
+          }
+        ]
       },
       {
         "type": "TEXT",
@@ -53,7 +89,14 @@ ___TEMPLATE_PARAMETERS___
             "type": "NON_EMPTY"
           }
         ],
-        "help": "Your Xe Currency Data API key.\n\u003cbr/\u003e\u003cbr/\u003e\nLearn more: \u003ca href\u003d\"https://help.xe.com/hc/en-gb/articles/17085932359057-Where-can-I-find-my-Account-ID-and-API-Key-for-Xe-s-Currency-Data-plugin-on-Business-Central\"\u003e[1]\u003c/a\u003e and \u003ca href\u003d\"https://developers.xe.com/docs/currency-data-api/registration-overview#step-3--find-your-credentials\"\u003e[2]\u003c/a\u003e."
+        "help": "Your Xe Currency Data API key. It is sent as the password for HTTP Basic authentication.\u003cbr/\u003e\u003cbr/\u003eFind it in your Xe Currency Data account: \u003ca href\u003d\"https://developers.xe.com/docs/currency-data-api/registration-overview#step-3--find-your-credentials\"\u003edocumentation\u003c/a\u003e. You can request free credentials for a 7-day trial \u003ca href\u003d\"https://xecd-account-api.xe.com/v2/newuser?type\u003dfreetrial/\"\u003ehere\u003c/a\u003e.",
+        "enablingConditions": [
+          {
+            "paramName": "apiProvider",
+            "paramValue": "xe",
+            "type": "EQUALS"
+          }
+        ]
       }
     ]
   },
@@ -72,9 +115,9 @@ ___TEMPLATE_PARAMETERS___
           {
             "type": "REGEX",
             "args": [
-              "^[A-Za-z]{3}$"
+              "^[A-Za-z0-9]{2,5}$"
             ],
-            "errorMessage": "Must be a 3-letter ISO 4217 currency code, e.g. USD.",
+            "errorMessage": "Must be a currency code, e.g. USD.",
             "enablingConditions": [
               {
                 "paramName": "autoMapEventData",
@@ -95,7 +138,7 @@ ___TEMPLATE_PARAMETERS___
           }
         ],
         "valueHint": "USD",
-        "help": "ISO 4217 code of the currency the amount is converted from.\u003cbr/\u003e\u003cbr/\u003eFalls back to \u003ci\u003eeventData.currency\u003c/i\u003e when left empty and \u003ci\u003eAutomap from Event Data\u003c/i\u003e is enabled, and to \u003ci\u003eUSD\u003c/i\u003e when neither is set."
+        "help": "Code of the currency the amount is converted from, e.g. \u003ci\u003eUSD\u003c/i\u003e.\u003cbr/\u003e\u003cbr/\u003eFalls back to \u003ci\u003eeventData.currency\u003c/i\u003e when left empty and \u003ci\u003eAutomap from Event Data\u003c/i\u003e is enabled, and to \u003ci\u003eUSD\u003c/i\u003e when neither is set."
       },
       {
         "type": "TEXT",
@@ -110,15 +153,15 @@ ___TEMPLATE_PARAMETERS___
           {
             "type": "REGEX",
             "args": [
-              "^[A-Za-z]{3}$"
+              "^[A-Za-z0-9]{2,5}$"
             ],
-            "errorMessage": "Must be a 3-letter ISO 4217 currency code, e.g. EUR.",
+            "errorMessage": "Must be a currency code, e.g. EUR.",
             "enablingConditions": []
           }
         ],
         "alwaysInSummary": true,
         "valueHint": "EUR",
-        "help": "ISO 4217 code of the currency the amount is converted to. The full list of codes is available \u003ca href\u003d\"https://www.xe.com/iso4217.php\"\u003ehere\u003c/a\u003e."
+        "help": "Code of the currency the amount is converted to, e.g. \u003ci\u003eEUR\u003c/i\u003e.\u003cbr/\u003e\u003cbr/\u003eUse ISO 4217 codes. Both APIs also support some precious metals (e.g. \u003ci\u003eXAU\u003c/i\u003e), and the Exchange API supports cryptocurrencies (e.g. \u003ci\u003eBTC\u003c/i\u003e). The supported codes are listed \u003ca href\u003d\"https://api.frankfurter.dev/v2/currencies\"\u003ehere (Frankfurter)\u003c/a\u003e and \u003ca href\u003d\"https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.json\"\u003ehere (Exchange API)\u003c/a\u003e."
       },
       {
         "type": "TEXT",
@@ -137,6 +180,13 @@ ___TEMPLATE_PARAMETERS___
                 "type": "NOT_EQUALS"
               }
             ]
+          }
+        ],
+        "enablingConditions": [
+          {
+            "paramName": "whatToReturn",
+            "paramValue": "convertedAmount",
+            "type": "EQUALS"
           }
         ]
       },
@@ -171,8 +221,8 @@ ___TEMPLATE_PARAMETERS___
             "displayValue": "Exchange Rate"
           },
           {
-            "value": "allData",
-            "displayValue": "Full API Response"
+            "value": "rateData",
+            "displayValue": "Rate Data"
           }
         ],
         "simpleValueType": true,
@@ -182,7 +232,7 @@ ___TEMPLATE_PARAMETERS___
             "type": "NON_EMPTY"
           }
         ],
-        "help": "\u003cul\u003e\n  \u003cli\u003e\u003cb\u003eConverted Amount\u003c/b\u003e: the Amount multiplied by the mid-market exchange rate.\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eExchange Rate\u003c/b\u003e: the mid-market rate for a single unit of the From Currency.\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eFull API Response\u003c/b\u003e: the parsed Xe API response object. Rates are always requested for a single unit, so \u003ci\u003eto[0].mid\u003c/i\u003e holds the exchange rate rather than the converted amount.\u003c/li\u003e\n\u003c/ul\u003e\nWhen a \u003cb\u003eMargin\u003c/b\u003e is set, the rate and the converted amount include it and are no longer the plain mid-market values.\u003cbr/\u003e\u003cbr/\u003eThe variable returns \u003ci\u003eundefined\u003c/i\u003e when the rate cannot be retrieved, or when Converted Amount is selected and the Amount is not a number."
+        "help": "\u003cul\u003e\n  \u003cli\u003e\u003cb\u003eConverted Amount\u003c/b\u003e: the Amount multiplied by the exchange rate.\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eExchange Rate\u003c/b\u003e: the exchange rate for a single unit of the From Currency.\u003c/li\u003e\n  \u003cli\u003e\u003cb\u003eRate Data\u003c/b\u003e: an object with the \u003ci\u003edate\u003c/i\u003e of the rate, the \u003ci\u003ebase\u003c/i\u003e and \u003ci\u003equote\u003c/i\u003e currencies and the \u003ci\u003erate\u003c/i\u003e. It has the same shape for every API; the date of an Xe rate is a full timestamp.\u003c/li\u003e\n\u003c/ul\u003eThe variable returns \u003ci\u003eundefined\u003c/i\u003e when the rate cannot be retrieved, or when Converted Amount is selected and the Amount is not a number."
       },
       {
         "type": "TEXT",
@@ -199,7 +249,7 @@ ___TEMPLATE_PARAMETERS___
         "enablingConditions": [
           {
             "paramName": "whatToReturn",
-            "paramValue": "allData",
+            "paramValue": "rateData",
             "type": "NOT_EQUALS"
           }
         ]
@@ -218,7 +268,23 @@ ___TEMPLATE_PARAMETERS___
         "displayName": "Margin (%)",
         "simpleValueType": true,
         "valueHint": "2.05",
-        "help": "Optional percentage margin (+/-) that Xe applies on top of its mid-market rate. For example, \u003ci\u003e2.05\u003c/i\u003e returns the mid-market rate plus 2.05%."
+        "valueValidators": [
+          {
+            "type": "REGEX",
+            "args": [
+              "^-?\\d+(\\.\\d+)?$"
+            ],
+            "errorMessage": "Must be a number, e.g. 2.05 or -1.5."
+          }
+        ],
+        "help": "Optional percentage margin (+/-) that Xe applies on top of its mid-market rate. For example, \u003ci\u003e2.05\u003c/i\u003e returns the mid-market rate plus 2.05%.\u003cbr/\u003e\u003cbr/\u003eThe exchange rate, converted amount and rate data returned by this variable include the margin.",
+        "enablingConditions": [
+          {
+            "paramName": "apiProvider",
+            "paramValue": "xe",
+            "type": "EQUALS"
+          }
+        ]
       },
       {
         "type": "CHECKBOX",
@@ -226,7 +292,7 @@ ___TEMPLATE_PARAMETERS___
         "checkboxText": "Store exchange rates in cache",
         "simpleValueType": true,
         "defaultValue": true,
-        "help": "Caches the exchange rate in Template Storage, so that repeated conversions of the same currency pair do not consume Xe API quota. Rates are always requested for a single unit, which means one cached entry serves every amount."
+        "help": "Caches the exchange rate in Template Storage, so that repeated conversions of the same currency pair do not request it again. Rates are always requested for a single unit, which means one cached entry serves every amount."
       },
       {
         "type": "TEXT",
@@ -274,50 +340,125 @@ const toBase64 = require('toBase64');
 /*==============================================================================
 ==============================================================================*/
 
-const API_URL = 'https://xecdapi.xe.com/v1/convert_from';
-const REQUEST_TIMEOUT = 3000;
-const DEFAULT_FROM_CURRENCY = 'USD';
-const DEFAULT_CACHE_TTL_MINUTES = 60;
-
 const eventData = getAllEventData();
 
-if (shouldExitEarly(data, eventData)) return undefined;
+if (shouldExitEarly(eventData)) return undefined;
 
-const fromCurrency = resolveFromCurrency(data, eventData);
 const toCurrency = normalizeCurrency(data.toCurrency);
-const amount = resolveAmount(data, eventData);
-
 if (!toCurrency) return undefined;
 
-return getRateResponse(fromCurrency, toCurrency).then((response) =>
-  formatOutput(response, toCurrency, amount)
-);
+const provider = getProvider(data.apiProvider);
+const fromCurrency = resolveFromCurrency(data, eventData);
+return getRateData(provider, fromCurrency, toCurrency).then((rateData) => {
+  const amount =
+    data.whatToReturn === 'convertedAmount' ? resolveAmount(data, eventData) : undefined;
+  return formatOutput(rateData, amount);
+});
 
 /*==============================================================================
   Vendor related functions
 ==============================================================================*/
 
-function getRateResponse(fromCurrency, toCurrency) {
-  const margin = resolveMargin();
-  const cacheKey = buildCacheKey(fromCurrency, toCurrency, margin);
+function getProvider(apiProvider) {
+  if (apiProvider === 'xe') {
+    const margin = resolveMargin();
+    const marginKey = margin === undefined ? '' : makeString(margin);
+    const credentials = makeString(data.accountId) + ':' + makeString(data.apiKey);
 
-  const cachedResponse = readCache(cacheKey);
-  if (cachedResponse) return Promise.create((resolve) => resolve(cachedResponse));
+    return {
+      name: 'xe',
+      cacheScope: makeString(data.accountId) + '|' + marginKey,
+      headers: { Authorization: 'Basic ' + toBase64(credentials), Accept: 'application/json' },
+      buildUrls: (fromCurrency, toCurrency) => {
+        const url =
+          'https://xecdapi.xe.com/v1/convert_from?from=' +
+          enc(fromCurrency) +
+          '&to=' +
+          enc(toCurrency) +
+          '&amount=1';
+        return [margin === undefined ? url : url + '&margin=' + enc(margin)];
+      },
+      extractRate: (body, fromCurrency, toCurrency) => {
+        const rates = body.to;
+        if (getType(rates) !== 'array') return undefined;
 
-  return sendHttpRequest(buildRequestUrl(fromCurrency, toCurrency, margin), buildRequestOptions())
-    .then((result) => {
-      if (result.statusCode < 200 || result.statusCode >= 300) return undefined;
+        for (let i = 0; i < rates.length; i++) {
+          if (rates[i] && rates[i].quotecurrency === toCurrency) return rates[i].mid;
+        }
 
-      const response = safeJsonParse(result.body);
-      if (getType(response) !== 'object') return undefined;
+        return undefined;
+      },
+      extractDate: (body) => body.timestamp
+    };
+  }
 
-      if (extractRate(response, toCurrency) !== undefined) writeCache(cacheKey, response);
-      return response;
-    })
-    .catch(() => undefined);
+  if (apiProvider === 'exchangeApi') {
+    return {
+      name: 'exchangeApi',
+      headers: { Accept: 'application/json' },
+      buildUrls: (fromCurrency) => {
+        const path = '/v1/currencies/' + enc(fromCurrency.toLowerCase()) + '.min.json';
+        return [
+          'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest' + path,
+          'https://latest.currency-api.pages.dev' + path
+        ];
+      },
+      extractRate: (body, fromCurrency, toCurrency) => {
+        const rates = body[fromCurrency.toLowerCase()];
+        return getType(rates) === 'object' ? rates[toCurrency.toLowerCase()] : undefined;
+      },
+      extractDate: (body) => body.date
+    };
+  }
+
+  return {
+    name: 'frankfurter',
+    headers: { Accept: 'application/json' },
+    buildUrls: (fromCurrency, toCurrency) => [
+      'https://api.frankfurter.dev/v2/rate/' + enc(fromCurrency) + '/' + enc(toCurrency)
+    ],
+    extractRate: (body) => body.rate,
+    extractDate: (body) => body.date
+  };
 }
 
-// JSON.parse throws on malformed input (e.g. an HTML error page), so check the shape first.
+function getRateData(provider, fromCurrency, toCurrency) {
+  const cacheKey = buildCacheKey(provider, fromCurrency, toCurrency);
+
+  const cachedRateData = readCache(cacheKey);
+  if (cachedRateData) return Promise.create((resolve) => resolve(cachedRateData));
+
+  const parseBody = (body) => parseRateData(provider, body, fromCurrency, toCurrency);
+
+  const urls = provider.buildUrls(fromCurrency, toCurrency);
+
+  return requestFirstValidRateData(provider.headers, urls, parseBody).then((rateData) => {
+    if (rateData) writeCache(cacheKey, rateData);
+    return rateData;
+  });
+}
+
+function requestFirstValidRateData(headers, urls, parseBody) {
+  if (!urls.length) return Promise.create((resolve) => resolve(undefined));
+
+  return sendHttpRequest(urls[0], { method: 'GET', headers: headers, timeout: 3000 })
+    .then((result) => {
+      if (result.statusCode < 200 || result.statusCode >= 300) return undefined;
+      return parseBody(safeJsonParse(result.body));
+    })
+    .catch(() => undefined)
+    .then((rateData) => rateData || requestFirstValidRateData(headers, urls.slice(1), parseBody));
+}
+
+function parseRateData(provider, body, fromCurrency, toCurrency) {
+  if (getType(body) !== 'object') return undefined;
+
+  const rate = provider.extractRate(body, fromCurrency, toCurrency);
+  if (!isValidNumber(rate)) return undefined;
+
+  return { date: provider.extractDate(body), base: fromCurrency, quote: toCurrency, rate: rate };
+}
+
 function safeJsonParse(body) {
   if (getType(body) !== 'string') return undefined;
 
@@ -331,58 +472,31 @@ function safeJsonParse(body) {
   return JSON.parse(trimmedBody);
 }
 
-function buildRequestUrl(fromCurrency, toCurrency, margin) {
-  let url = API_URL + '?from=' + enc(fromCurrency) + '&to=' + enc(toCurrency) + '&amount=1';
-  if (margin !== undefined) url += '&margin=' + enc(margin);
-  return url;
-}
-
-function buildRequestOptions() {
-  const credentials = makeString(data.accountId) + ':' + makeString(data.apiKey);
-  return {
-    method: 'GET',
-    headers: {
-      Authorization: 'Basic ' + toBase64(credentials),
-      Accept: 'application/json'
-    },
-    timeout: REQUEST_TIMEOUT
-  };
-}
-
-function formatOutput(response, toCurrency, amount) {
-  if (!response) return undefined;
-  if (data.whatToReturn === 'allData') return response;
-
-  const rate = extractRate(response, toCurrency);
-  if (rate === undefined) return undefined;
-
-  if (data.whatToReturn === 'exchangeRate') return roundValue(rate);
+function formatOutput(rateData, amount) {
+  if (!rateData) return undefined;
+  if (data.whatToReturn === 'rateData') return rateData;
+  if (data.whatToReturn === 'exchangeRate') return roundValue(rateData.rate);
 
   // A provided but invalid Amount must not be reported as a converted value of 1 unit.
   if (amount === undefined) return undefined;
-  return roundValue(rate * amount);
-}
-
-function extractRate(response, toCurrency) {
-  const rates = response.to;
-  if (getType(rates) !== 'array') return undefined;
-
-  for (let i = 0; i < rates.length; i++) {
-    const rate = rates[i];
-    if (rate && rate.quotecurrency === toCurrency && isValidNumber(rate.mid)) return rate.mid;
-  }
-
-  return undefined;
+  return roundValue(rateData.rate * amount);
 }
 
 /*==============================================================================
   Input resolution
 ==============================================================================*/
 
+function resolveMargin() {
+  if (!isValidValue(data.margin)) return undefined;
+
+  const margin = makeNumber(data.margin);
+  return isValidNumber(margin) ? margin : undefined;
+}
+
 function resolveFromCurrency(data, eventData) {
   let currency = data.fromCurrency;
   if (!isValidValue(currency) && data.autoMapEventData) currency = eventData.currency;
-  return normalizeCurrency(currency) || DEFAULT_FROM_CURRENCY;
+  return normalizeCurrency(currency) || 'USD';
 }
 
 function resolveAmount(data, eventData) {
@@ -392,13 +506,6 @@ function resolveAmount(data, eventData) {
 
   const amount = makeNumber(rawAmount);
   return isValidNumber(amount) ? amount : undefined;
-}
-
-function resolveMargin() {
-  if (!isValidValue(data.margin)) return undefined;
-
-  const margin = makeNumber(data.margin);
-  return isValidNumber(margin) ? margin : undefined;
 }
 
 function normalizeCurrency(value) {
@@ -420,19 +527,9 @@ function roundValue(value) {
   Cache
 ==============================================================================*/
 
-function buildCacheKey(fromCurrency, toCurrency, margin) {
-  const marginKey = margin === undefined ? '' : makeString(margin);
-
-  return (
-    'xe_rate|' +
-    makeString(data.accountId) +
-    '|' +
-    fromCurrency +
-    '|' +
-    toCurrency +
-    '|' +
-    marginKey
-  );
+function buildCacheKey(provider, fromCurrency, toCurrency) {
+  const scope = provider.cacheScope === undefined ? '' : provider.cacheScope + '|';
+  return 'rate|' + provider.name + '|' + scope + fromCurrency + '|' + toCurrency;
 }
 
 function readCache(cacheKey) {
@@ -443,19 +540,19 @@ function readCache(cacheKey) {
   if (getType(cached) !== 'object' || !isValidNumber(cached.ts)) return undefined;
   if (cached.ts + cacheTtl <= getTimestampMillis()) return undefined;
 
-  return cached.response;
+  return cached.rateData;
 }
 
-function writeCache(cacheKey, response) {
+function writeCache(cacheKey, rateData) {
   if (!resolveCacheTtlMillis()) return;
-  templateDataStorage.setItemCopy(cacheKey, { ts: getTimestampMillis(), response: response });
+  templateDataStorage.setItemCopy(cacheKey, { ts: getTimestampMillis(), rateData: rateData });
 }
 
 function resolveCacheTtlMillis() {
   if (!data.useCache) return 0;
 
   const minutes = makeNumber(data.cacheTtlMinutes);
-  const ttlMinutes = isValidNumber(minutes) && minutes > 0 ? minutes : DEFAULT_CACHE_TTL_MINUTES;
+  const ttlMinutes = isValidNumber(minutes) && minutes > 0 ? minutes : 60;
   return ttlMinutes * 60 * 1000;
 }
 
@@ -463,11 +560,12 @@ function resolveCacheTtlMillis() {
   Helpers
 ==============================================================================*/
 
-function shouldExitEarly(data, eventData) {
+function shouldExitEarly(eventData) {
   const url = eventData.page_location || getRequestHeader('referer');
   if (url && url.lastIndexOf('https://gtm-msr.appspot.com/', 0) === 0) return true;
-  if (!isValidValue(data.accountId) || !isValidValue(data.apiKey)) return true;
-  return false;
+
+  const isMissingCredentials = !isValidValue(data.accountId) || !isValidValue(data.apiKey);
+  return data.apiProvider === 'xe' && isMissingCredentials;
 }
 
 function isValidValue(value) {
@@ -596,6 +694,18 @@ ___SERVER_PERMISSIONS___
             "listItem": [
               {
                 "type": 1,
+                "string": "https://api.frankfurter.dev/v2/rate/*"
+              },
+              {
+                "type": 1,
+                "string": "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/*"
+              },
+              {
+                "type": 1,
+                "string": "https://latest.currency-api.pages.dev/v1/currencies/*"
+              },
+              {
+                "type": 1,
                 "string": "https://xecdapi.xe.com/v1/convert_from*"
               }
             ]
@@ -645,43 +755,150 @@ scenarios:
 
     assertThat(variableResult).isUndefined();
     assertApi('sendHttpRequest').wasNotCalled();
-- name: '[Early Exit] Returns undefined and makes no request when API credentials
-    are missing'
-  code: |-
-    const variableResult = runCode(createMockData({apiKey: undefined}));
-
-    assertThat(variableResult).isUndefined();
-    assertApi('sendHttpRequest').wasNotCalled();
 - name: '[Early Exit] Returns undefined and makes no request when To Currency is missing'
   code: |-
     const variableResult = runCode(createMockData({toCurrency: ''}));
 
     assertThat(variableResult).isUndefined();
     assertApi('sendHttpRequest').wasNotCalled();
-- name: '[Request] Requests the rate for a single unit with Basic authentication'
+- name: '[Early Exit] Returns undefined and makes no request when Xe credentials are missing'
   code: |-
-    runCode(mockData).then(() => {
-      assertApi('sendHttpRequest').wasCalledWith(
-        'https://xecdapi.xe.com/v1/convert_from?from=USD&to=EUR&amount=1',
-        expectedRequestOptions
-      );
-    });
-- name: '[Request] Appends the margin parameter when a margin is configured'
+    const variableResult = runCode(createMockData({apiProvider: 'xe', apiKey: undefined}));
+
+    assertThat(variableResult).isUndefined();
+    assertApi('sendHttpRequest').wasNotCalled();
+- name: '[Provider] Requests the single-unit rate from Frankfurter when the provider is not set'
   code: |-
-    runCode(createMockData({margin: '2.05'})).then(() => {
-      assertApi('sendHttpRequest').wasCalledWith(
-        'https://xecdapi.xe.com/v1/convert_from?from=USD&to=EUR&amount=1&margin=2.05',
-        expectedRequestOptions
-      );
+    runCode(createMockData({apiProvider: undefined})).then((variableResult) => {
+      assertApi('sendHttpRequest').wasCalledWith(FRANKFURTER_URL, expectedRequestOptions);
+      assertThat(requestedUrls).isEqualTo([FRANKFURTER_URL]);
+      assertThat(variableResult).isEqualTo(87.65);
     });
-- name: '[Request] Trims and upper-cases the configured currency codes'
+- name: '[Frankfurter] Trims and upper-cases the configured currency codes'
   code: |-
     runCode(createMockData({fromCurrency: ' usd ', toCurrency: 'eur'})).then((variableResult) => {
-      assertApi('sendHttpRequest').wasCalledWith(
-        'https://xecdapi.xe.com/v1/convert_from?from=USD&to=EUR&amount=1',
-        expectedRequestOptions
-      );
+      assertApi('sendHttpRequest').wasCalledWith(FRANKFURTER_URL, expectedRequestOptions);
       assertThat(variableResult).isEqualTo(87.65);
+    });
+- name: '[Frankfurter] Returns undefined when the API responds with a non-2xx status
+    code'
+  code: |-
+    mockHttpRequest(() => ({
+      statusCode: 422,
+      body: '{"status":422,"message":"invalid currency: XXX"}'
+    }));
+
+    runCode(mockData).then((variableResult) => {
+      assertThat(variableResult).isUndefined();
+    });
+- name: '[Frankfurter] Returns undefined when the response holds no numeric rate'
+  code: |-
+    mockRates(FRANKFURTER_URL, {date: '2026-10-05', base: 'USD', quote: 'EUR', rate: 'n/a'});
+
+    runCode(mockData).then((variableResult) => {
+      assertThat(variableResult).isUndefined();
+    });
+- name: '[Exchange API] Requests the rates of the lower-cased From Currency from the
+    CDN'
+  code: |-
+    runCode(createMockData({apiProvider: 'exchangeApi'})).then((variableResult) => {
+      assertApi('sendHttpRequest').wasCalledWith(EXCHANGE_API_URL, expectedRequestOptions);
+      assertThat(requestedUrls).isEqualTo([EXCHANGE_API_URL]);
+      assertThat(variableResult).isEqualTo(87.65);
+    });
+- name: '[Exchange API] Falls back to the mirror when the CDN request fails'
+  code: |-
+    mockRates(EXCHANGE_API_FALLBACK_URL, createExchangeApiResponse('USD', 'EUR', RATE));
+
+    runCode(createMockData({apiProvider: 'exchangeApi'})).then((variableResult) => {
+      assertApi('sendHttpRequest').wasCalledWith(EXCHANGE_API_URL, expectedRequestOptions);
+      assertApi('sendHttpRequest').wasCalledWith(EXCHANGE_API_FALLBACK_URL, expectedRequestOptions);
+      assertThat(variableResult).isEqualTo(87.65);
+    });
+- name: '[Exchange API] Falls back to the mirror when the CDN does not return JSON'
+  code: |-
+    mockHttpRequest((url) =>
+      url === EXCHANGE_API_URL
+        ? {statusCode: 200, body: '<html>Bad Gateway</html>'}
+        : jsonResponse(createExchangeApiResponse('USD', 'EUR', RATE))
+    );
+
+    runCode(createMockData({apiProvider: 'exchangeApi'})).then((variableResult) => {
+      assertApi('sendHttpRequest').wasCalledWith(EXCHANGE_API_FALLBACK_URL, expectedRequestOptions);
+      assertThat(variableResult).isEqualTo(87.65);
+    });
+- name: '[Exchange API] Does not call the mirror when the CDN responds with a valid
+    rate'
+  code: |-
+    runCode(createMockData({apiProvider: 'exchangeApi'})).then(() => {
+      assertThat(requestedUrls).isEqualTo([EXCHANGE_API_URL]);
+    });
+- name: '[Exchange API] Returns undefined when the CDN and the mirror both fail'
+  code: |-
+    mockHttpRequest(() => undefined);
+
+    runCode(createMockData({apiProvider: 'exchangeApi'})).then((variableResult) => {
+      assertThat(requestedUrls).isEqualTo([EXCHANGE_API_URL, EXCHANGE_API_FALLBACK_URL]);
+      assertThat(variableResult).isUndefined();
+    });
+- name: '[Exchange API] Returns undefined when the response holds no rate for the
+    requested currency'
+  code: |-
+    mockRates(EXCHANGE_API_URL, createExchangeApiResponse('USD', 'GBP', RATE));
+
+    runCode(createMockData({apiProvider: 'exchangeApi'})).then((variableResult) => {
+      assertThat(variableResult).isUndefined();
+    });
+- name: '[Xe] Requests the rate for a single unit with Basic authentication'
+  code: |-
+    runCode(createMockData({apiProvider: 'xe'})).then((variableResult) => {
+      assertApi('sendHttpRequest').wasCalledWith(XE_URL, expectedXeRequestOptions);
+      assertThat(requestedUrls).isEqualTo([XE_URL]);
+      assertThat(variableResult).isEqualTo(87.65);
+    });
+- name: '[Xe] Appends the margin parameter when a margin is configured'
+  code: |-
+    mockRates(XE_URL + '&margin=2.05', createXeResponse('USD', 'EUR', RATE));
+
+    runCode(createMockData({apiProvider: 'xe', margin: '2.05'})).then((variableResult) => {
+      assertApi('sendHttpRequest').wasCalledWith(XE_URL + '&margin=2.05', expectedXeRequestOptions);
+      assertThat(variableResult).isEqualTo(87.65);
+    });
+- name: '[Xe] Ignores an invalid margin, and ignores the margin for the free APIs'
+  code: |-
+    runCode(createMockData({apiProvider: 'xe', margin: 'not-a-number'}))
+      .then(() => {
+        assertThat(requestedUrls).isEqualTo([XE_URL]);
+        return runCode(createMockData({margin: '2.05'}));
+      })
+      .then(() => {
+        assertThat(requestedUrls).isEqualTo([XE_URL, FRANKFURTER_URL]);
+      });
+- name: '[Xe] Reads the rate of the requested currency among the returned quotes'
+  code: |-
+    const response = createXeResponse('USD', 'EUR', RATE);
+    response.to = [{quotecurrency: 'GBP', mid: 0.5}, {quotecurrency: 'EUR', mid: RATE}];
+    mockRates(XE_URL, response);
+
+    runCode(createMockData({apiProvider: 'xe'})).then((variableResult) => {
+      assertThat(variableResult).isEqualTo(87.65);
+    });
+- name: '[Xe] Returns undefined when the API responds with a non-2xx status code'
+  code: |-
+    mockHttpRequest(() => ({
+      statusCode: 401,
+      body: JSON.stringify(createXeResponse('USD', 'EUR', RATE))
+    }));
+
+    runCode(createMockData({apiProvider: 'xe'})).then((variableResult) => {
+      assertThat(variableResult).isUndefined();
+    });
+- name: '[Xe] Returns undefined when the response holds no rate for the requested currency'
+  code: |-
+    mockRates(XE_URL, createXeResponse('USD', 'GBP', RATE));
+
+    runCode(createMockData({apiProvider: 'xe'})).then((variableResult) => {
+      assertThat(variableResult).isUndefined();
     });
 - name: '[Automap] Falls back to the Event Data currency and value when the fields
     are empty'
@@ -691,13 +908,10 @@ scenarios:
       currency: 'GBP',
       value: 250
     }));
-    mockSuccessfulResponse(createRateResponse('GBP', 'EUR', RATE));
+    mockRates(GBP_FRANKFURTER_URL, createFrankfurterResponse('GBP', 'EUR', RATE));
 
     runCode(createMockData({fromCurrency: '', amount: ''})).then((variableResult) => {
-      assertApi('sendHttpRequest').wasCalledWith(
-        'https://xecdapi.xe.com/v1/convert_from?from=GBP&to=EUR&amount=1',
-        expectedRequestOptions
-      );
+      assertApi('sendHttpRequest').wasCalledWith(GBP_FRANKFURTER_URL, expectedRequestOptions);
       assertThat(variableResult).isEqualTo(219.14);
     });
 - name: '[Automap] Ignores Event Data and applies the defaults when automap is disabled'
@@ -711,25 +925,19 @@ scenarios:
     const overrides = {fromCurrency: '', amount: '', autoMapEventData: false};
 
     runCode(createMockData(overrides)).then((variableResult) => {
-      assertApi('sendHttpRequest').wasCalledWith(
-        'https://xecdapi.xe.com/v1/convert_from?from=USD&to=EUR&amount=1',
-        expectedRequestOptions
-      );
+      assertApi('sendHttpRequest').wasCalledWith(FRANKFURTER_URL, expectedRequestOptions);
       assertThat(variableResult).isEqualTo(0.88);
     });
-- name: '[Amount] Returns undefined when the configured amount is not a number'
+- name: '[Amount] A non-numeric amount returns undefined for Converted Amount only'
   code: |-
-    runCode(createMockData({amount: 'not-a-number'})).then((variableResult) => {
-      assertThat(variableResult).isUndefined();
-    });
-- name: '[Amount] Still returns the exchange rate when the configured amount is not
-    a number'
-  code: |-
-    runCode(createMockData({amount: 'not-a-number', whatToReturn: 'exchangeRate'})).then(
-      (variableResult) => {
+    runCode(createMockData({amount: 'not-a-number'}))
+      .then((variableResult) => {
+        assertThat(variableResult).isUndefined();
+        return runCode(createMockData({amount: 'not-a-number', whatToReturn: 'exchangeRate'}));
+      })
+      .then((variableResult) => {
         assertThat(variableResult).isEqualTo(0.88);
-      }
-    );
+      });
 - name: '[Amount] Converts a zero amount to zero'
   code: |-
     runCode(createMockData({amount: '0'})).then((variableResult) => {
@@ -752,39 +960,31 @@ scenarios:
         assertThat(variableResult).isEqualTo(RATE);
       }
     );
-- name: '[Output] Returns the parsed API response when Full API Response is selected'
+- name: '[Output] Returns the same rate data shape for Frankfurter and Exchange API'
   code: |-
-    const rateResponse = createRateResponse('USD', 'EUR', RATE);
-    mockSuccessfulResponse(rateResponse);
-
-    runCode(createMockData({whatToReturn: 'allData'})).then((variableResult) => {
-      assertThat(variableResult).isEqualTo(rateResponse);
-    });
-- name: '[Failure] Returns undefined when the API responds with a non-2xx status code'
+    runCode(createMockData({whatToReturn: 'rateData'}))
+      .then((variableResult) => {
+        assertThat(variableResult).isEqualTo(expectedRateData);
+        return runCode(createMockData({apiProvider: 'exchangeApi', whatToReturn: 'rateData'}));
+      })
+      .then((variableResult) => {
+        assertThat(variableResult).isEqualTo(expectedRateData);
+      });
+- name: '[Output] Returns the Xe rate data with the full timestamp as the date'
   code: |-
-    mock('sendHttpRequest', () =>
-      Promise.create((resolve) =>
-        resolve({statusCode: 401, body: '{"code":1,"message":"Bad credentials"}'})
-      )
-    );
+    const overrides = {apiProvider: 'xe', whatToReturn: 'rateData'};
 
-    runCode(mockData).then((variableResult) => {
-      assertThat(variableResult).isUndefined();
+    runCode(createMockData(overrides)).then((variableResult) => {
+      assertThat(variableResult).isEqualTo({
+        date: XE_TIMESTAMP,
+        base: 'USD',
+        quote: 'EUR',
+        rate: RATE
+      });
     });
 - name: '[Failure] Returns undefined when the response body is not valid JSON'
   code: |-
-    mock('sendHttpRequest', () =>
-      Promise.create((resolve) => resolve({statusCode: 200, body: '<html>Bad Gateway</html>'}))
-    );
-
-    runCode(mockData).then((variableResult) => {
-      assertThat(variableResult).isUndefined();
-    });
-- name: '[Failure] Returns undefined when the response body is empty'
-  code: |-
-    mock('sendHttpRequest', () =>
-      Promise.create((resolve) => resolve({statusCode: 200, body: ''}))
-    );
+    mockHttpRequest(() => ({statusCode: 200, body: '<html>Bad Gateway</html>'}));
 
     runCode(mockData).then((variableResult) => {
       assertThat(variableResult).isUndefined();
@@ -798,14 +998,6 @@ scenarios:
     runCode(mockData).then((variableResult) => {
       assertThat(variableResult).isUndefined();
     });
-- name: '[Failure] Returns undefined when the response holds no rate for the requested
-    currency'
-  code: |-
-    mockSuccessfulResponse(createRateResponse('USD', 'GBP', RATE));
-
-    runCode(mockData).then((variableResult) => {
-      assertThat(variableResult).isUndefined();
-    });
 - name: '[Cache] Serves a valid cached rate without calling the API'
   code: |-
     let requestedKey;
@@ -813,23 +1005,20 @@ scenarios:
     mockObject('templateDataStorage', {
       getItemCopy: (key) => {
         requestedKey = key;
-        return {ts: NOW, response: createRateResponse('USD', 'EUR', RATE)};
+        return {ts: NOW, rateData: expectedRateData};
       },
       setItemCopy: () => {}
     });
 
     runCode(createMockData({useCache: true})).then((variableResult) => {
       assertApi('sendHttpRequest').wasNotCalled();
-      assertThat(requestedKey).isEqualTo('xe_rate|testAccountId|USD|EUR|');
+      assertThat(requestedKey).isEqualTo('rate|frankfurter|USD|EUR');
       assertThat(variableResult).isEqualTo(87.65);
     });
 - name: '[Cache] Requests a fresh rate when the cached entry has expired'
   code: |-
     mockObject('templateDataStorage', {
-      getItemCopy: () => ({
-        ts: NOW - 60 * 60 * 1000,
-        response: createRateResponse('USD', 'EUR', RATE)
-      }),
+      getItemCopy: () => ({ts: NOW - 60 * 60 * 1000, rateData: expectedRateData}),
       setItemCopy: () => {}
     });
 
@@ -839,17 +1028,14 @@ scenarios:
 - name: '[Cache] Falls back to the default TTL when Cache TTL is empty'
   code: |-
     mockObject('templateDataStorage', {
-      getItemCopy: () => ({
-        ts: NOW - 59 * 60 * 1000,
-        response: createRateResponse('USD', 'EUR', RATE)
-      }),
+      getItemCopy: () => ({ts: NOW - 59 * 60 * 1000, rateData: expectedRateData}),
       setItemCopy: () => {}
     });
 
     runCode(createMockData({useCache: true, cacheTtlMinutes: ''})).then(() => {
       assertApi('sendHttpRequest').wasNotCalled();
     });
-- name: '[Cache] Stores a successful response under a margin-aware cache key'
+- name: '[Cache] Stores a successful response under a provider-aware cache key'
   code: |-
     let storedKey;
     let storedValue;
@@ -862,12 +1048,31 @@ scenarios:
       }
     });
 
-    runCode(createMockData({useCache: true, margin: '2.05'})).then(() => {
-      assertThat(storedKey).isEqualTo('xe_rate|testAccountId|USD|EUR|2.05');
+    const overrides = {apiProvider: 'exchangeApi', useCache: true};
+
+    runCode(createMockData(overrides)).then(() => {
+      assertThat(storedKey).isEqualTo('rate|exchangeApi|USD|EUR');
       assertThat(storedValue.ts).isEqualTo(NOW);
-      assertThat(storedValue.response).isEqualTo(createRateResponse('USD', 'EUR', RATE));
+      assertThat(storedValue.rateData).isEqualTo(expectedRateData);
     });
-- name: '[Cache] Does not store a response that holds no rate for the requested currency'
+- name: '[Cache] Scopes the Xe cache key by account and margin'
+  code: |-
+    let storedKey;
+
+    mockObject('templateDataStorage', {
+      getItemCopy: () => undefined,
+      setItemCopy: (key) => {
+        storedKey = key;
+      }
+    });
+    mockRates(XE_URL + '&margin=2.05', createXeResponse('USD', 'EUR', RATE));
+
+    const overrides = {apiProvider: 'xe', useCache: true, margin: '2.05'};
+
+    runCode(createMockData(overrides)).then(() => {
+      assertThat(storedKey).isEqualTo('rate|xe|testAccountId|2.05|USD|EUR');
+    });
+- name: '[Cache] Does not store a response that holds no rate'
   code: |-
     let storeCalls = 0;
 
@@ -877,7 +1082,7 @@ scenarios:
         storeCalls++;
       }
     });
-    mockSuccessfulResponse(createRateResponse('USD', 'GBP', RATE));
+    mockHttpRequest(() => ({statusCode: 200, body: '{}'}));
 
     runCode(createMockData({useCache: true})).then((variableResult) => {
       assertThat(variableResult).isUndefined();
@@ -919,22 +1124,68 @@ setup: |-
   const NOW = 1000000000000;
   const RATE = 0.876543;
 
-  const createRateResponse = (from, to, mid) => ({
-    terms: 'https://www.xe.com/legal/dfs.php',
-    privacy: 'https://www.xe.com/privacy.php',
+  const FRANKFURTER_URL = 'https://api.frankfurter.dev/v2/rate/USD/EUR';
+  const EXCHANGE_API_URL =
+    'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.min.json';
+  const EXCHANGE_API_FALLBACK_URL =
+    'https://latest.currency-api.pages.dev/v1/currencies/usd.min.json';
+  const GBP_FRANKFURTER_URL = 'https://api.frankfurter.dev/v2/rate/GBP/EUR';
+  const XE_URL = 'https://xecdapi.xe.com/v1/convert_from?from=USD&to=EUR&amount=1';
+  const XE_TIMESTAMP = '2026-09-24T14:25:00Z';
+
+  const requestedUrls = [];
+
+  const createFrankfurterResponse = (from, to, rate) => ({
+    date: '2026-10-05',
+    base: from,
+    quote: to,
+    rate: rate
+  });
+
+  const createExchangeApiResponse = (from, to, rate) => {
+    const rates = {xxx: 1};
+    rates[to.toLowerCase()] = rate;
+    const response = {date: '2026-10-05'};
+    response[from.toLowerCase()] = rates;
+    return response;
+  };
+
+  const createXeResponse = (from, to, mid) => ({
+    terms: 'https://www.xe.com/legal',
+    privacy: 'https://www.xe.com/privacy',
     from: from,
     amount: 1,
-    timestamp: '2026-09-18T00:00:00Z',
+    timestamp: XE_TIMESTAMP,
     to: [{quotecurrency: to, mid: mid}]
   });
 
-  const mockSuccessfulResponse = (response) => {
-    mock('sendHttpRequest', () =>
-      Promise.create((resolve) => resolve({statusCode: 200, body: JSON.stringify(response)}))
+  const expectedRateData = {date: '2026-10-05', base: 'USD', quote: 'EUR', rate: RATE};
+
+  const jsonResponse = (body) => ({statusCode: 200, body: JSON.stringify(body)});
+
+  // The handler receives the requested URL and returns the response, or undefined to fail it.
+  const mockHttpRequest = (handler) => {
+    mock('sendHttpRequest', (url) =>
+      Promise.create((resolve, reject) => {
+        requestedUrls.push(url);
+        const result = handler(url);
+        if (result) resolve(result);
+        else reject({reason: 'failed'});
+      })
     );
   };
 
+  const mockRates = (mockedUrl, body) => {
+    mockHttpRequest((url) => (url === mockedUrl ? jsonResponse(body) : undefined));
+  };
+
   const expectedRequestOptions = {
+    method: 'GET',
+    headers: {Accept: 'application/json'},
+    timeout: 3000
+  };
+
+  const expectedXeRequestOptions = {
     method: 'GET',
     headers: {
       Authorization: 'Basic ' + toBase64('testAccountId:testApiKey'),
@@ -944,15 +1195,16 @@ setup: |-
   };
 
   const baseMockData = {
+    apiProvider: 'frankfurter',
     accountId: 'testAccountId',
     apiKey: 'testApiKey',
+    margin: undefined,
     fromCurrency: 'USD',
     toCurrency: 'EUR',
     amount: '100',
     autoMapEventData: true,
     whatToReturn: 'convertedAmount',
     decimalPlaces: '2',
-    margin: undefined,
     useCache: false,
     cacheTtlMinutes: '60'
   };
@@ -966,7 +1218,18 @@ setup: |-
     getItemCopy: () => undefined,
     setItemCopy: () => {}
   });
-  mockSuccessfulResponse(createRateResponse('USD', 'EUR', RATE));
+  mockHttpRequest((url) => {
+    if (url === FRANKFURTER_URL) {
+      return jsonResponse(createFrankfurterResponse('USD', 'EUR', RATE));
+    }
+    if (url === EXCHANGE_API_URL) {
+      return jsonResponse(createExchangeApiResponse('USD', 'EUR', RATE));
+    }
+    if (url === XE_URL) {
+      return jsonResponse(createXeResponse('USD', 'EUR', RATE));
+    }
+    return undefined;
+  });
 
   const mockData = createMockData({});
 

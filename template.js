@@ -15,50 +15,125 @@ const toBase64 = require('toBase64');
 /*==============================================================================
 ==============================================================================*/
 
-const API_URL = 'https://xecdapi.xe.com/v1/convert_from';
-const REQUEST_TIMEOUT = 3000;
-const DEFAULT_FROM_CURRENCY = 'USD';
-const DEFAULT_CACHE_TTL_MINUTES = 60;
-
 const eventData = getAllEventData();
 
-if (shouldExitEarly(data, eventData)) return undefined;
+if (shouldExitEarly(eventData)) return undefined;
 
-const fromCurrency = resolveFromCurrency(data, eventData);
 const toCurrency = normalizeCurrency(data.toCurrency);
-const amount = resolveAmount(data, eventData);
-
 if (!toCurrency) return undefined;
 
-return getRateResponse(fromCurrency, toCurrency).then((response) =>
-  formatOutput(response, toCurrency, amount)
-);
+const provider = getProvider(data.apiProvider);
+const fromCurrency = resolveFromCurrency(data, eventData);
+return getRateData(provider, fromCurrency, toCurrency).then((rateData) => {
+  const amount =
+    data.whatToReturn === 'convertedAmount' ? resolveAmount(data, eventData) : undefined;
+  return formatOutput(rateData, amount);
+});
 
 /*==============================================================================
   Vendor related functions
 ==============================================================================*/
 
-function getRateResponse(fromCurrency, toCurrency) {
-  const margin = resolveMargin();
-  const cacheKey = buildCacheKey(fromCurrency, toCurrency, margin);
+function getProvider(apiProvider) {
+  if (apiProvider === 'xe') {
+    const margin = resolveMargin();
+    const marginKey = margin === undefined ? '' : makeString(margin);
+    const credentials = makeString(data.accountId) + ':' + makeString(data.apiKey);
 
-  const cachedResponse = readCache(cacheKey);
-  if (cachedResponse) return Promise.create((resolve) => resolve(cachedResponse));
+    return {
+      name: 'xe',
+      cacheScope: makeString(data.accountId) + '|' + marginKey,
+      headers: { Authorization: 'Basic ' + toBase64(credentials), Accept: 'application/json' },
+      buildUrls: (fromCurrency, toCurrency) => {
+        const url =
+          'https://xecdapi.xe.com/v1/convert_from?from=' +
+          enc(fromCurrency) +
+          '&to=' +
+          enc(toCurrency) +
+          '&amount=1';
+        return [margin === undefined ? url : url + '&margin=' + enc(margin)];
+      },
+      extractRate: (body, fromCurrency, toCurrency) => {
+        const rates = body.to;
+        if (getType(rates) !== 'array') return undefined;
 
-  return sendHttpRequest(buildRequestUrl(fromCurrency, toCurrency, margin), buildRequestOptions())
-    .then((result) => {
-      if (result.statusCode < 200 || result.statusCode >= 300) return undefined;
+        for (let i = 0; i < rates.length; i++) {
+          if (rates[i] && rates[i].quotecurrency === toCurrency) return rates[i].mid;
+        }
 
-      const response = safeJsonParse(result.body);
-      if (getType(response) !== 'object') return undefined;
+        return undefined;
+      },
+      extractDate: (body) => body.timestamp
+    };
+  }
 
-      if (extractRate(response, toCurrency) !== undefined) writeCache(cacheKey, response);
-      return response;
-    })
-    .catch(() => undefined);
+  if (apiProvider === 'exchangeApi') {
+    return {
+      name: 'exchangeApi',
+      headers: { Accept: 'application/json' },
+      buildUrls: (fromCurrency) => {
+        const path = '/v1/currencies/' + enc(fromCurrency.toLowerCase()) + '.min.json';
+        return [
+          'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest' + path,
+          'https://latest.currency-api.pages.dev' + path
+        ];
+      },
+      extractRate: (body, fromCurrency, toCurrency) => {
+        const rates = body[fromCurrency.toLowerCase()];
+        return getType(rates) === 'object' ? rates[toCurrency.toLowerCase()] : undefined;
+      },
+      extractDate: (body) => body.date
+    };
+  }
+
+  return {
+    name: 'frankfurter',
+    headers: { Accept: 'application/json' },
+    buildUrls: (fromCurrency, toCurrency) => [
+      'https://api.frankfurter.dev/v2/rate/' + enc(fromCurrency) + '/' + enc(toCurrency)
+    ],
+    extractRate: (body) => body.rate,
+    extractDate: (body) => body.date
+  };
 }
 
-// JSON.parse throws on malformed input (e.g. an HTML error page), so check the shape first.
+function getRateData(provider, fromCurrency, toCurrency) {
+  const cacheKey = buildCacheKey(provider, fromCurrency, toCurrency);
+
+  const cachedRateData = readCache(cacheKey);
+  if (cachedRateData) return Promise.create((resolve) => resolve(cachedRateData));
+
+  const parseBody = (body) => parseRateData(provider, body, fromCurrency, toCurrency);
+
+  const urls = provider.buildUrls(fromCurrency, toCurrency);
+
+  return requestFirstValidRateData(provider.headers, urls, parseBody).then((rateData) => {
+    if (rateData) writeCache(cacheKey, rateData);
+    return rateData;
+  });
+}
+
+function requestFirstValidRateData(headers, urls, parseBody) {
+  if (!urls.length) return Promise.create((resolve) => resolve(undefined));
+
+  return sendHttpRequest(urls[0], { method: 'GET', headers: headers, timeout: 3000 })
+    .then((result) => {
+      if (result.statusCode < 200 || result.statusCode >= 300) return undefined;
+      return parseBody(safeJsonParse(result.body));
+    })
+    .catch(() => undefined)
+    .then((rateData) => rateData || requestFirstValidRateData(headers, urls.slice(1), parseBody));
+}
+
+function parseRateData(provider, body, fromCurrency, toCurrency) {
+  if (getType(body) !== 'object') return undefined;
+
+  const rate = provider.extractRate(body, fromCurrency, toCurrency);
+  if (!isValidNumber(rate)) return undefined;
+
+  return { date: provider.extractDate(body), base: fromCurrency, quote: toCurrency, rate: rate };
+}
+
 function safeJsonParse(body) {
   if (getType(body) !== 'string') return undefined;
 
@@ -72,58 +147,31 @@ function safeJsonParse(body) {
   return JSON.parse(trimmedBody);
 }
 
-function buildRequestUrl(fromCurrency, toCurrency, margin) {
-  let url = API_URL + '?from=' + enc(fromCurrency) + '&to=' + enc(toCurrency) + '&amount=1';
-  if (margin !== undefined) url += '&margin=' + enc(margin);
-  return url;
-}
-
-function buildRequestOptions() {
-  const credentials = makeString(data.accountId) + ':' + makeString(data.apiKey);
-  return {
-    method: 'GET',
-    headers: {
-      Authorization: 'Basic ' + toBase64(credentials),
-      Accept: 'application/json'
-    },
-    timeout: REQUEST_TIMEOUT
-  };
-}
-
-function formatOutput(response, toCurrency, amount) {
-  if (!response) return undefined;
-  if (data.whatToReturn === 'allData') return response;
-
-  const rate = extractRate(response, toCurrency);
-  if (rate === undefined) return undefined;
-
-  if (data.whatToReturn === 'exchangeRate') return roundValue(rate);
+function formatOutput(rateData, amount) {
+  if (!rateData) return undefined;
+  if (data.whatToReturn === 'rateData') return rateData;
+  if (data.whatToReturn === 'exchangeRate') return roundValue(rateData.rate);
 
   // A provided but invalid Amount must not be reported as a converted value of 1 unit.
   if (amount === undefined) return undefined;
-  return roundValue(rate * amount);
-}
-
-function extractRate(response, toCurrency) {
-  const rates = response.to;
-  if (getType(rates) !== 'array') return undefined;
-
-  for (let i = 0; i < rates.length; i++) {
-    const rate = rates[i];
-    if (rate && rate.quotecurrency === toCurrency && isValidNumber(rate.mid)) return rate.mid;
-  }
-
-  return undefined;
+  return roundValue(rateData.rate * amount);
 }
 
 /*==============================================================================
   Input resolution
 ==============================================================================*/
 
+function resolveMargin() {
+  if (!isValidValue(data.margin)) return undefined;
+
+  const margin = makeNumber(data.margin);
+  return isValidNumber(margin) ? margin : undefined;
+}
+
 function resolveFromCurrency(data, eventData) {
   let currency = data.fromCurrency;
   if (!isValidValue(currency) && data.autoMapEventData) currency = eventData.currency;
-  return normalizeCurrency(currency) || DEFAULT_FROM_CURRENCY;
+  return normalizeCurrency(currency) || 'USD';
 }
 
 function resolveAmount(data, eventData) {
@@ -133,13 +181,6 @@ function resolveAmount(data, eventData) {
 
   const amount = makeNumber(rawAmount);
   return isValidNumber(amount) ? amount : undefined;
-}
-
-function resolveMargin() {
-  if (!isValidValue(data.margin)) return undefined;
-
-  const margin = makeNumber(data.margin);
-  return isValidNumber(margin) ? margin : undefined;
 }
 
 function normalizeCurrency(value) {
@@ -161,19 +202,9 @@ function roundValue(value) {
   Cache
 ==============================================================================*/
 
-function buildCacheKey(fromCurrency, toCurrency, margin) {
-  const marginKey = margin === undefined ? '' : makeString(margin);
-
-  return (
-    'xe_rate|' +
-    makeString(data.accountId) +
-    '|' +
-    fromCurrency +
-    '|' +
-    toCurrency +
-    '|' +
-    marginKey
-  );
+function buildCacheKey(provider, fromCurrency, toCurrency) {
+  const scope = provider.cacheScope === undefined ? '' : provider.cacheScope + '|';
+  return 'rate|' + provider.name + '|' + scope + fromCurrency + '|' + toCurrency;
 }
 
 function readCache(cacheKey) {
@@ -184,19 +215,19 @@ function readCache(cacheKey) {
   if (getType(cached) !== 'object' || !isValidNumber(cached.ts)) return undefined;
   if (cached.ts + cacheTtl <= getTimestampMillis()) return undefined;
 
-  return cached.response;
+  return cached.rateData;
 }
 
-function writeCache(cacheKey, response) {
+function writeCache(cacheKey, rateData) {
   if (!resolveCacheTtlMillis()) return;
-  templateDataStorage.setItemCopy(cacheKey, { ts: getTimestampMillis(), response: response });
+  templateDataStorage.setItemCopy(cacheKey, { ts: getTimestampMillis(), rateData: rateData });
 }
 
 function resolveCacheTtlMillis() {
   if (!data.useCache) return 0;
 
   const minutes = makeNumber(data.cacheTtlMinutes);
-  const ttlMinutes = isValidNumber(minutes) && minutes > 0 ? minutes : DEFAULT_CACHE_TTL_MINUTES;
+  const ttlMinutes = isValidNumber(minutes) && minutes > 0 ? minutes : 60;
   return ttlMinutes * 60 * 1000;
 }
 
@@ -204,11 +235,12 @@ function resolveCacheTtlMillis() {
   Helpers
 ==============================================================================*/
 
-function shouldExitEarly(data, eventData) {
+function shouldExitEarly(eventData) {
   const url = eventData.page_location || getRequestHeader('referer');
   if (url && url.lastIndexOf('https://gtm-msr.appspot.com/', 0) === 0) return true;
-  if (!isValidValue(data.accountId) || !isValidValue(data.apiKey)) return true;
-  return false;
+
+  const isMissingCredentials = !isValidValue(data.accountId) || !isValidValue(data.apiKey);
+  return data.apiProvider === 'xe' && isMissingCredentials;
 }
 
 function isValidValue(value) {
