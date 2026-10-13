@@ -58,3 +58,6 @@ Use ISO 4217 codes, for example `USD`. Codes are trimmed and converted to upper 
 ## Open Source
 
 The **Currency Converter Variable for GTM Server Side** is developed and maintained by the [Stape Team](https://stape.io/) under the Apache 2.0 license.
+
+### GTM Gallery Status
+🔴 Not listed
